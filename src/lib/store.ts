@@ -17,6 +17,7 @@ export interface TimerState {
   routineTaskIds: string[]
   sessionStarted: boolean
   completedIndexes: number[]
+  expired: boolean  // flag confiável: true quando o timer chegou a zero
 }
 
 interface AppStore {
@@ -34,7 +35,7 @@ interface AppStore {
   resumeTimer: () => void
   nextTask: () => void
   stopSession: () => void
-  markCurrentComplete: () => void
+  acknowledgeExpiry: () => void
 }
 
 const defaultTimer: TimerState = {
@@ -45,6 +46,7 @@ const defaultTimer: TimerState = {
   routineTaskIds: [],
   sessionStarted: false,
   completedIndexes: [],
+  expired: false,
 }
 
 export const useAppStore = create<AppStore>()(
@@ -87,18 +89,32 @@ export const useAppStore = create<AppStore>()(
             routineTaskIds: taskIds,
             sessionStarted: true,
             completedIndexes: [],
+            expired: false,
           },
         })
       },
 
       tickTimer: () => {
-        const { timer, tasks } = get()
-        if (!timer.isRunning || timer.isPaused) return
-        if (timer.timeLeftSeconds > 0) {
+        const { timer } = get()
+        if (!timer.isRunning || timer.isPaused || timer.expired) return
+
+        if (timer.timeLeftSeconds > 1) {
+          // Decrementa normalmente
           set((s) => ({
             timer: { ...s.timer, timeLeftSeconds: s.timer.timeLeftSeconds - 1 },
           }))
+        } else if (timer.timeLeftSeconds === 1) {
+          // Chegou a zero: para o timer e levanta a flag de expirado
+          set((s) => ({
+            timer: {
+              ...s.timer,
+              timeLeftSeconds: 0,
+              isRunning: false,
+              expired: true,
+            },
+          }))
         }
+        // Se já é 0, não faz nada (expired já está true)
       },
 
       pauseTimer: () => {
@@ -126,6 +142,7 @@ export const useAppStore = create<AppStore>()(
             timeLeftSeconds: nextTask.durationMinutes * 60,
             isRunning: true,
             isPaused: false,
+            expired: false,
             completedIndexes: [...s.timer.completedIndexes, s.timer.currentIndex],
           },
         }))
@@ -135,14 +152,8 @@ export const useAppStore = create<AppStore>()(
         set({ timer: defaultTimer })
       },
 
-      markCurrentComplete: () => {
-        const { timer } = get()
-        set((s) => ({
-          timer: {
-            ...s.timer,
-            completedIndexes: [...s.timer.completedIndexes, timer.currentIndex],
-          },
-        }))
+      acknowledgeExpiry: () => {
+        set((s) => ({ timer: { ...s.timer, expired: false } }))
       },
     }),
     {

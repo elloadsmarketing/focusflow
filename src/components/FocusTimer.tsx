@@ -2,64 +2,69 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/lib/store'
-import { startAlarm, stopAlarm, playStartSound, requestNotificationPermission, sendNotification } from '@/lib/alarm'
+import {
+  startAlarm,
+  stopAlarm,
+  playStartSound,
+  requestNotificationPermission,
+  sendNotification,
+} from '@/lib/alarm'
 import WelcomeScreen from './WelcomeScreen'
 
 export default function FocusTimer() {
-  const { tasks, timer, tickTimer, pauseTimer, resumeTimer, nextTask, stopSession } = useAppStore()
+  const { tasks, timer, tickTimer, pauseTimer, resumeTimer, nextTask, stopSession, acknowledgeExpiry } =
+    useAppStore()
   const [alarmFiring, setAlarmFiring] = useState(false)
   const [notifGranted, setNotifGranted] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const prevTimeRef = useRef<number>(timer.timeLeftSeconds)
 
   const currentTask = tasks.find((t) => t.id === timer.routineTaskIds[timer.currentIndex])
   const totalTasks = timer.routineTaskIds.length
 
-  // Request notification permission on mount
+  // Pede permissão de notificação ao montar
   useEffect(() => {
     requestNotificationPermission().then(setNotifGranted)
   }, [])
 
-  // Tick interval
+  // Intervalo do tick
   useEffect(() => {
-    if (timer.isRunning && !timer.isPaused) {
-      intervalRef.current = setInterval(tickTimer, 1000)
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+
+    if (timer.isRunning && !timer.isPaused && !timer.expired) {
+      intervalRef.current = setInterval(() => {
+        tickTimer()
+      }, 1000)
     }
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [timer.isRunning, timer.isPaused, tickTimer])
+  }, [timer.isRunning, timer.isPaused, timer.expired])
 
-  // Detect when timer hits 0
+  // Detecta quando o timer expirou (flag confiável do store)
   useEffect(() => {
-    if (prevTimeRef.current > 0 && timer.timeLeftSeconds === 0 && timer.isRunning) {
+    if (timer.expired && !alarmFiring) {
       setAlarmFiring(true)
       startAlarm()
       sendNotification(
-        `⏰ Tempo esgotado!`,
-        currentTask ? `Tarefa "${currentTask.name}" finalizada. Próxima tarefa!` : 'Tarefa finalizada!',
-        currentTask?.emoji ?? '⏰'
+        `⏰ Tempo esgotado! ${currentTask?.emoji ?? ''}`,
+        currentTask
+          ? `"${currentTask.name}" finalizada. Hora da próxima!`
+          : 'Tarefa finalizada!'
       )
     }
-    prevTimeRef.current = timer.timeLeftSeconds
-  }, [timer.timeLeftSeconds, timer.isRunning, currentTask])
-
-  // Stop alarm when navigating away from alarm state
-  useEffect(() => {
-    if (!alarmFiring) stopAlarm()
-  }, [alarmFiring])
+  }, [timer.expired])
 
   const handleDismissAlarm = () => {
-    setAlarmFiring(false)
     stopAlarm()
+    setAlarmFiring(false)
+    acknowledgeExpiry()
     nextTask()
   }
 
   const handleStop = () => {
-    setAlarmFiring(false)
     stopAlarm()
+    setAlarmFiring(false)
     stopSession()
   }
 
@@ -69,14 +74,13 @@ export default function FocusTimer() {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
-  const progress = currentTask
-    ? 1 - timer.timeLeftSeconds / (currentTask.durationMinutes * 60)
-    : 0
-
+  const totalSeconds = currentTask ? currentTask.durationMinutes * 60 : 1
+  const progress = Math.max(0, Math.min(1, 1 - timer.timeLeftSeconds / totalSeconds))
   const radius = 90
   const circumference = 2 * Math.PI * radius
   const dashOffset = circumference * (1 - progress)
 
+  // Tela inicial
   if (!timer.sessionStarted) {
     return (
       <WelcomeScreen
@@ -86,12 +90,12 @@ export default function FocusTimer() {
     )
   }
 
-  // ALARM OVERLAY
+  // OVERLAY DE ALARME
   if (alarmFiring) {
     const isLast = timer.currentIndex >= totalTasks - 1
     return (
       <div
-        className="flex flex-col items-center justify-center h-full gap-6 text-center animate-pulse-slow rounded-2xl"
+        className="flex flex-col items-center justify-center h-full gap-6 text-center rounded-2xl animate-pulse-slow"
         style={{
           backgroundColor: currentTask ? `${currentTask.color}22` : '#7c3aed22',
           border: `2px solid ${currentTask?.color ?? '#7c3aed'}`,
@@ -100,14 +104,13 @@ export default function FocusTimer() {
         <div className="text-8xl animate-bounce">{currentTask?.emoji ?? '⏰'}</div>
         <div>
           <div className="text-5xl font-black text-white mb-2">TEMPO!</div>
-          <div
-            className="text-xl font-bold mb-1"
-            style={{ color: currentTask?.color ?? '#7c3aed' }}
-          >
+          <div className="text-xl font-bold mb-1" style={{ color: currentTask?.color ?? '#7c3aed' }}>
             {currentTask?.name}
           </div>
           <p className="text-zinc-400 text-sm">
-            {isLast ? 'Última tarefa concluída! Rotina completa!' : 'Hora de passar para a próxima tarefa.'}
+            {isLast
+              ? '🎉 Última tarefa! Rotina completa!'
+              : 'Hora de passar para a próxima tarefa.'}
           </p>
         </div>
 
@@ -139,10 +142,10 @@ export default function FocusTimer() {
     )
   }
 
-  // ACTIVE TIMER
+  // TIMER ATIVO
   return (
     <div className="flex flex-col items-center justify-between h-full py-4">
-      {/* Progress indicators */}
+      {/* Barra de progresso das tarefas */}
       <div className="w-full">
         <div className="flex justify-between items-center mb-3">
           <span className="text-zinc-500 text-xs">Progresso</span>
@@ -159,7 +162,7 @@ export default function FocusTimer() {
               <div
                 key={id}
                 className={`h-1.5 flex-1 rounded-full transition-all ${
-                  isCompleted ? 'opacity-100' : isCurrent ? 'opacity-100 animate-pulse' : 'opacity-30'
+                  isCompleted ? 'opacity-100' : isCurrent ? 'opacity-100 animate-pulse' : 'opacity-20'
                 }`}
                 style={{ backgroundColor: t?.color ?? '#7c3aed' }}
               />
@@ -168,7 +171,7 @@ export default function FocusTimer() {
         </div>
       </div>
 
-      {/* Task info */}
+      {/* Info da tarefa atual */}
       <div className="text-center">
         <div className="text-4xl mb-2">{currentTask?.emoji}</div>
         <h3 className="text-xl font-bold text-white">{currentTask?.name}</h3>
@@ -177,24 +180,21 @@ export default function FocusTimer() {
         </p>
       </div>
 
-      {/* Circular timer */}
+      {/* Timer circular */}
       <div className="relative flex items-center justify-center">
         <svg width="220" height="220" className="-rotate-90">
+          <circle cx="110" cy="110" r={radius} fill="none" stroke="#27272a" strokeWidth="10" />
           <circle
-            cx="110" cy="110" r={radius}
-            fill="none"
-            stroke="#27272a"
-            strokeWidth="10"
-          />
-          <circle
-            cx="110" cy="110" r={radius}
+            cx="110"
+            cy="110"
+            r={radius}
             fill="none"
             stroke={currentTask?.color ?? '#7c3aed'}
             strokeWidth="10"
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
-            style={{ transition: 'stroke-dashoffset 1s linear' }}
+            style={{ transition: 'stroke-dashoffset 0.9s linear' }}
           />
         </svg>
         <div className="absolute text-center">
@@ -202,12 +202,12 @@ export default function FocusTimer() {
             {formatTime(timer.timeLeftSeconds)}
           </div>
           <div className="text-zinc-500 text-xs mt-1">
-            {timer.isPaused ? 'Pausado' : 'Restante'}
+            {timer.isPaused ? '⏸ Pausado' : 'Restante'}
           </div>
         </div>
       </div>
 
-      {/* Controls */}
+      {/* Controles */}
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <div className="flex gap-3">
           {timer.isPaused ? (
@@ -227,10 +227,7 @@ export default function FocusTimer() {
             </button>
           )}
           <button
-            onClick={() => {
-              stopAlarm()
-              nextTask()
-            }}
+            onClick={() => { stopAlarm(); nextTask() }}
             className="px-4 py-3 rounded-xl font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors"
             title="Pular tarefa"
           >
