@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import StoreProvider from "@/components/StoreProvider";
 
 export const metadata: Metadata = {
   title: "FocusFlow – Produtividade com Foco",
@@ -10,9 +9,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className="h-full">
-      <body className="h-full flex flex-col antialiased">
-        <StoreProvider>{children}</StoreProvider>
-      </body>
+      <body className="h-full flex flex-col antialiased">{children}</body>
     </html>
   );
 }
