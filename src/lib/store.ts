@@ -22,6 +22,8 @@ export interface TimerState {
 interface AppStore {
   tasks: Task[]
   timer: TimerState
+  userName: string
+  setUserName: (name: string) => void
   addTask: (task: Omit<Task, 'id'>) => void
   updateTask: (id: string, task: Omit<Task, 'id'>) => void
   removeTask: (id: string) => void
@@ -50,6 +52,9 @@ export const useAppStore = create<AppStore>()(
     (set, get) => ({
       tasks: [],
       timer: defaultTimer,
+      userName: '',
+
+      setUserName: (name) => set({ userName: name }),
 
       addTask: (taskData) => {
         const task: Task = { ...taskData, id: crypto.randomUUID() }
@@ -142,7 +147,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: 'focusflow-storage',
-      partialize: (state) => ({ tasks: state.tasks }),
+      partialize: (state) => ({ tasks: state.tasks, userName: state.userName }),
     }
   )
 )

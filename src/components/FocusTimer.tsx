@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { startAlarm, stopAlarm, playStartSound, requestNotificationPermission, sendNotification } from '@/lib/alarm'
+import WelcomeScreen from './WelcomeScreen'
 
 export default function FocusTimer() {
   const { tasks, timer, tickTimer, pauseTimer, resumeTimer, nextTask, stopSession } = useAppStore()
@@ -78,28 +79,10 @@ export default function FocusTimer() {
 
   if (!timer.sessionStarted) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
-        <div className="text-7xl">🎯</div>
-        <div>
-          <h2 className="text-2xl font-bold text-white mb-2">Pronto para focar?</h2>
-          <p className="text-zinc-400 text-sm max-w-xs">
-            Adicione suas tarefas na lista ao lado e inicie a rotina para começar.
-          </p>
-        </div>
-        {!notifGranted && (
-          <button
-            onClick={() => requestNotificationPermission().then(setNotifGranted)}
-            className="px-4 py-2 bg-amber-900/40 border border-amber-700 rounded-xl text-amber-400 text-sm font-medium hover:bg-amber-900/60 transition-colors"
-          >
-            🔔 Ativar notificações do navegador
-          </button>
-        )}
-        {notifGranted && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-900/30 border border-emerald-700/50 rounded-xl text-emerald-400 text-sm">
-            ✅ Notificações ativadas
-          </div>
-        )}
-      </div>
+      <WelcomeScreen
+        notifGranted={notifGranted}
+        onRequestNotif={() => requestNotificationPermission().then(setNotifGranted)}
+      />
     )
   }
 

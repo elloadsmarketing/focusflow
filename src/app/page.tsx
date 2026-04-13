@@ -6,7 +6,7 @@ import FocusTimer from '@/components/FocusTimer'
 import { playStartSound } from '@/lib/alarm'
 
 export default function Home() {
-  const { timer, startSession } = useAppStore()
+  const { timer, userName, startSession } = useAppStore()
 
   const handleStart = (taskIds: string[]) => {
     playStartSound()
@@ -30,7 +30,7 @@ export default function Home() {
           )}
         </div>
         <div className="text-xs text-zinc-600">
-          Mantenha o foco. Um passo de cada vez.
+          {userName ? `Foco total, ${userName}. Um passo de cada vez. 💜` : 'Mantenha o foco. Um passo de cada vez.'}
         </div>
       </header>
 
