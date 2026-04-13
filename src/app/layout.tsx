@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "FocusFlow – Produtividade com Foco",
   description: "App de produtividade com timer, alarmes e rotina diária",
+  icons: { icon: '/icon.svg' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

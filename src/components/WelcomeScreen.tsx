@@ -1,102 +1,70 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAppStore } from '@/lib/store'
 
 const MESSAGES = [
-  {
-    hora: [5, 11],
-    titulo: (nome: string) => `Bom dia, ${nome}! ☀️`,
-    sub: 'O dia acabou de começar. Você tem tudo dentro de você pra fazer acontecer.',
-  },
-  {
-    hora: [12, 17],
-    titulo: (nome: string) => `Boa tarde, ${nome}! 💪`,
-    sub: 'Cada minuto focado agora é uma versão melhor de você amanhã.',
-  },
-  {
-    hora: [18, 23],
-    titulo: (nome: string) => `Boa noite, ${nome}! 🌙`,
-    sub: 'Ainda dá tempo de ser produtivo. Pequenos passos fazem a diferença.',
-  },
-  {
-    hora: [0, 4],
-    titulo: (nome: string) => `Ei, ${nome}... 🌌`,
-    sub: 'Sei que é tarde. Mas você está aqui, e isso já é muito.',
-  },
+  { hora: [5, 11],  titulo: (n: string) => `Bom dia, ${n} ☀️`,   sub: 'O dia acabou de começar. Você tem tudo dentro de você.' },
+  { hora: [12, 17], titulo: (n: string) => `Boa tarde, ${n} 💪`,  sub: 'Cada minuto focado agora vale ouro amanhã.' },
+  { hora: [18, 23], titulo: (n: string) => `Boa noite, ${n} 🌙`,  sub: 'Ainda dá tempo. Pequenos passos mudam tudo.' },
+  { hora: [0, 4],   titulo: (n: string) => `Ei, ${n}... 🌌`,      sub: 'Sei que é tarde. Mas você está aqui, e isso já é muito.' },
 ]
 
-const CUIDADO_FRASES = [
-  'Procrastinar não é fraqueza — é o seu cérebro pedindo um empurrão. Eu estou aqui pra isso.',
-  'Você não precisa ser perfeito. Precisa apenas começar. Eu cuido do resto.',
-  'Com TDAH, começar é a parte mais difícil. Então deixa eu te ajudar a dar o primeiro passo.',
-  'Cada tarefa concluída é uma vitória real. E você merece celebrar cada uma.',
-  'Foco não é um dom — é uma habilidade. E você está aqui treinando. Isso conta muito.',
-  'Não se compare com ninguém. Só compare com quem você foi ontem.',
+const FRASES = [
+  'Procrastinar não é fraqueza — é seu cérebro pedindo um empurrão. Estou aqui pra isso.',
+  'Você não precisa ser perfeito. Só precisa começar.',
+  'Com TDAH, começar é a parte mais difícil. Deixa eu te ajudar no primeiro passo.',
+  'Cada tarefa concluída é uma vitória real. Celebre cada uma.',
+  'Foco não é um dom — é uma habilidade. E você está aqui treinando.',
+  'Não se compare com ninguém. Só com quem você foi ontem.',
 ]
 
-function getMessageForHour() {
-  const hora = new Date().getHours()
-  return MESSAGES.find((m) => hora >= m.hora[0] && hora <= m.hora[1]) ?? MESSAGES[0]
+function getMsgForHour() {
+  const h = new Date().getHours()
+  return MESSAGES.find(m => h >= m.hora[0] && h <= m.hora[1]) ?? MESSAGES[0]
 }
 
-function getRandomFrase() {
-  return CUIDADO_FRASES[Math.floor(Math.random() * CUIDADO_FRASES.length)]
-}
-
-interface Props {
-  notifGranted: boolean
-  onRequestNotif: () => void
-}
-
-export default function WelcomeScreen({ notifGranted, onRequestNotif }: Props) {
+export default function WelcomeScreen({ notifGranted, onRequestNotif }: { notifGranted: boolean; onRequestNotif: () => void }) {
   const { userName, setUserName } = useAppStore()
-  const [inputName, setInputName] = useState('')
-  const [frase] = useState(getRandomFrase)
-  const [msg] = useState(getMessageForHour)
-  const [showNameForm, setShowNameForm] = useState(false)
+  const [input, setInput] = useState('')
+  const [frase] = useState(() => FRASES[Math.floor(Math.random() * FRASES.length)])
+  const [msg] = useState(getMsgForHour)
+  const [editName, setEditName] = useState(false)
 
-  const handleSaveName = (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = inputName.trim()
-    if (trimmed) {
-      setUserName(trimmed)
-      setShowNameForm(false)
-    }
-  }
-
-  // First time — ask for name
   if (!userName) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-8 text-center px-8">
-        <div className="text-6xl animate-bounce">👋</div>
+      <div className="flex flex-col items-center justify-center h-full gap-8 text-center px-6 animate-fade-in">
+        {/* Icon */}
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full blur-2xl opacity-40" style={{ background: 'radial-gradient(circle, #8b5cf6, transparent)' }} />
+          <img src="/icon.svg" alt="" className="w-20 h-20 relative" />
+        </div>
+
         <div>
-          <h2 className="text-3xl font-black text-white mb-3">Olá! Eu sou o FocusFlow.</h2>
-          <p className="text-zinc-400 text-base max-w-sm leading-relaxed">
+          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text)' }}>
+            Olá! Sou o <span className="gradient-text">FocusFlow</span>.
+          </h1>
+          <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: 'var(--text-muted)' }}>
             Fui criado pra te ajudar a focar, vencer a procrastinação e respeitar o seu ritmo.
-            Mas primeiro, preciso te conhecer.
+            Mas primeiro — preciso te conhecer.
           </p>
         </div>
 
-        <form onSubmit={handleSaveName} className="w-full max-w-xs flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2 text-left">
-              Qual é o seu nome?
-            </label>
-            <input
-              type="text"
-              value={inputName}
-              onChange={(e) => setInputName(e.target.value)}
-              placeholder="Seu primeiro nome"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-lg placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 text-center"
-              autoFocus
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={!inputName.trim()}
-            className="w-full py-3 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 text-lg"
-          >
+        <form onSubmit={e => { e.preventDefault(); if (input.trim()) setUserName(input.trim()) }}
+          className="w-full max-w-xs flex flex-col gap-3">
+          <input
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="Qual é o seu nome?"
+            className="w-full px-4 py-3 rounded-xl text-center text-base font-medium outline-none transition-all"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)' }}
+            autoFocus
+            onFocus={e => (e.target.style.borderColor = 'rgba(139,92,246,0.6)')}
+            onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+          />
+          <button type="submit" disabled={!input.trim()}
+            className="btn-primary w-full py-3 rounded-xl font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">
             Vamos começar →
           </button>
         </form>
@@ -104,77 +72,64 @@ export default function WelcomeScreen({ notifGranted, onRequestNotif }: Props) {
     )
   }
 
-  // Returning user
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-6">
+    <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-6 animate-fade-in">
       {/* Greeting */}
-      <div className="flex flex-col items-center gap-2">
-        <h2 className="text-3xl font-black text-white">{msg.titulo(userName)}</h2>
-        <p className="text-zinc-400 text-sm max-w-xs leading-relaxed">{msg.sub}</p>
+      <div>
+        <h2 className="text-3xl font-black mb-1" style={{ color: 'var(--text)' }}>{msg.titulo(userName)}</h2>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{msg.sub}</p>
       </div>
 
-      {/* Cuidado card */}
-      <div className="bg-violet-950/40 border border-violet-700/40 rounded-2xl px-6 py-5 max-w-xs">
-        <div className="text-2xl mb-2">💜</div>
-        <p className="text-zinc-300 text-sm leading-relaxed italic">"{frase}"</p>
+      {/* Motivational card */}
+      <div className="max-w-sm w-full rounded-2xl p-5 text-left relative overflow-hidden"
+        style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
+        <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-20"
+          style={{ background: '#8b5cf6', transform: 'translate(30%, -30%)' }} />
+        <p className="text-2xl mb-2">💜</p>
+        <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text-muted)' }}>"{frase}"</p>
       </div>
 
-      {/* Instrução */}
+      {/* Instruction */}
       <div className="flex flex-col items-center gap-3">
-        <div className="flex items-center gap-2 text-zinc-500 text-sm">
-          <span className="text-zinc-600">←</span>
-          <span>Adicione suas tarefas e inicie a rotina</span>
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-dim)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          Adicione tarefas na agenda e inicie o dia
         </div>
 
-        {!notifGranted && (
-          <button
-            onClick={onRequestNotif}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-900/40 border border-amber-700/50 rounded-xl text-amber-400 text-sm font-medium hover:bg-amber-900/60 transition-colors"
-          >
-            🔔 Ativar alarme no navegador
-          </button>
-        )}
-
-        {notifGranted && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-900/30 border border-emerald-700/40 rounded-xl text-emerald-400 text-xs">
-            ✅ Alarme do navegador ativado
-          </div>
-        )}
+        {!notifGranted
+          ? <button onClick={onRequestNotif}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#fbbf24' }}>
+              🔔 Ativar alarme no navegador
+            </button>
+          : <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium"
+              style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }}>
+              ✅ Alarme do navegador ativado
+            </div>
+        }
       </div>
 
       {/* Change name */}
-      {!showNameForm ? (
-        <button
-          onClick={() => setShowNameForm(true)}
-          className="text-xs text-zinc-700 hover:text-zinc-500 transition-colors"
-        >
-          Não é {userName}? Clique aqui
-        </button>
-      ) : (
-        <form onSubmit={handleSaveName} className="flex gap-2 items-center">
-          <input
-            type="text"
-            value={inputName}
-            onChange={(e) => setInputName(e.target.value)}
-            placeholder="Seu nome"
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 w-36"
-            autoFocus
-          />
-          <button
-            type="submit"
-            className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm transition-colors"
-          >
-            Ok
+      {!editName
+        ? <button onClick={() => setEditName(true)} className="text-xs transition-colors"
+            style={{ color: 'var(--text-dim)' }}
+            onMouseEnter={e => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
+            onMouseLeave={e => ((e.target as HTMLElement).style.color = 'var(--text-dim)')}>
+            Não é {userName}?
           </button>
-          <button
-            type="button"
-            onClick={() => setShowNameForm(false)}
-            className="text-zinc-500 text-sm hover:text-zinc-300"
-          >
-            ✕
-          </button>
-        </form>
-      )}
+        : <form onSubmit={e => { e.preventDefault(); if (input.trim()) { setUserName(input.trim()); setEditName(false) } }}
+            className="flex gap-2">
+            <input value={input} onChange={e => setInput(e.target.value)} placeholder="Seu nome"
+              className="px-3 py-1.5 rounded-lg text-sm outline-none"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)', width: 140 }}
+              autoFocus />
+            <button type="submit" className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
+              style={{ background: 'var(--primary)' }}>Ok</button>
+            <button type="button" onClick={() => setEditName(false)} className="text-sm" style={{ color: 'var(--text-muted)' }}>✕</button>
+          </form>
+      }
     </div>
   )
 }

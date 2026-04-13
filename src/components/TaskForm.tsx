@@ -3,18 +3,26 @@
 import { useState } from 'react'
 import { Task, getDurationMinutes } from '@/lib/store'
 
-const COLORS = [
-  '#7c3aed', '#2563eb', '#059669', '#dc2626',
-  '#d97706', '#db2777', '#0891b2', '#65a30d',
-]
-
-const EMOJIS = ['💼', '📚', '💪', '🎯', '✍️', '🧠', '📞', '🛠️', '🎨', '📝', '🏃', '🍽️', '💤', '🧘']
+const COLORS = ['#8b5cf6','#3b82f6','#10b981','#ef4444','#f59e0b','#ec4899','#06b6d4','#84cc16']
+const EMOJIS = ['💼','📚','💪','🎯','✍️','🧠','📞','🛠️','🎨','📝','🏃','🍽️','💤','🧘']
 
 interface Props {
   onSave: (task: Omit<Task, 'id'>) => void
   onCancel: () => void
   initial?: Task
   suggestedStart?: string
+}
+
+const inputStyle = {
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  color: 'white',
+  borderRadius: 10,
+  padding: '8px 12px',
+  fontSize: 13,
+  outline: 'none',
+  width: '100%',
+  fontFamily: 'inherit',
 }
 
 export default function TaskForm({ onSave, onCancel, initial, suggestedStart }: Props) {
@@ -24,117 +32,75 @@ export default function TaskForm({ onSave, onCancel, initial, suggestedStart }: 
   const [color, setColor] = useState(initial?.color ?? COLORS[0])
   const [emoji, setEmoji] = useState(initial?.emoji ?? '🎯')
 
-  const duration = getDurationMinutes(startTime, endTime)
-  const validTimes = endTime > startTime
+  const dur = getDurationMinutes(startTime, endTime)
+  const valid = endTime > startTime && name.trim().length > 0
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim() || !validTimes) return
-    onSave({ name: name.trim(), startTime, endTime, color, emoji })
-  }
-
-  function fmtDuration(min: number) {
-    if (min <= 0) return '—'
-    if (min < 60) return `${min} min`
-    const h = Math.floor(min / 60)
-    const m = min % 60
-    return m > 0 ? `${h}h ${m}min` : `${h}h`
-  }
+  const fmtDur = (m: number) => m <= 0 ? '—' : m < 60 ? `${m}min` : `${Math.floor(m/60)}h${m%60 ? ` ${m%60}m` : ''}`
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Nome */}
-      <div>
-        <label className="block text-xs font-medium text-zinc-400 mb-1">Nome da tarefa</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Ex: Reunião com cliente"
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
-          autoFocus
-        />
-      </div>
+    <form onSubmit={e => { e.preventDefault(); if (valid) onSave({ name: name.trim(), startTime, endTime, color, emoji }) }}
+      className="flex flex-col gap-3">
 
-      {/* Horários */}
-      <div className="flex gap-3 items-end">
+      {/* Name */}
+      <input type="text" value={name} onChange={e => setName(e.target.value)}
+        placeholder="Nome da tarefa" style={inputStyle} autoFocus
+        onFocus={e => (e.target.style.borderColor = 'rgba(139,92,246,0.6)')}
+        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')} />
+
+      {/* Times */}
+      <div className="flex items-center gap-2">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-zinc-400 mb-1">Início</label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm font-mono"
-          />
+          <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Início</p>
+          <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+            style={{ ...inputStyle, fontFamily: 'monospace' }} />
         </div>
-        <div className="text-zinc-600 pb-2 text-lg">→</div>
+        <div className="text-lg mt-4" style={{ color: 'var(--text-dim)' }}>→</div>
         <div className="flex-1">
-          <label className="block text-xs font-medium text-zinc-400 mb-1">Fim</label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className={`w-full bg-zinc-800 border rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 text-sm font-mono ${
-              validTimes ? 'border-zinc-700 focus:ring-violet-500' : 'border-red-700 focus:ring-red-500'
-            }`}
-          />
+          <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Fim</p>
+          <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+            style={{ ...inputStyle, fontFamily: 'monospace', borderColor: dur > 0 ? 'rgba(255,255,255,0.1)' : 'rgba(239,68,68,0.5)' }} />
         </div>
-        <div className={`pb-2 text-xs font-medium min-w-[52px] text-right ${validTimes ? 'text-violet-400' : 'text-red-400'}`}>
-          {validTimes ? fmtDuration(duration) : 'inválido'}
+        <div className="mt-4 text-xs font-bold min-w-[44px] text-right" style={{ color: dur > 0 ? color : '#ef4444' }}>
+          {fmtDur(dur)}
         </div>
       </div>
 
       {/* Emoji */}
       <div>
-        <label className="block text-xs font-medium text-zinc-400 mb-2">Ícone</label>
-        <div className="flex gap-1.5 flex-wrap">
-          {EMOJIS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => setEmoji(e)}
-              className={`text-lg w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                emoji === e ? 'bg-violet-600 scale-110' : 'bg-zinc-700 hover:bg-zinc-600'
-              }`}
-            >
+        <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Ícone</p>
+        <div className="flex flex-wrap gap-1">
+          {EMOJIS.map(e => (
+            <button key={e} type="button" onClick={() => setEmoji(e)}
+              className="w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all"
+              style={{ background: emoji === e ? `${color}33` : 'rgba(255,255,255,0.05)', border: `1px solid ${emoji === e ? color + '66' : 'transparent'}`, transform: emoji === e ? 'scale(1.1)' : 'scale(1)' }}>
               {e}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Cor */}
+      {/* Color */}
       <div>
-        <label className="block text-xs font-medium text-zinc-400 mb-2">Cor</label>
+        <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Cor</p>
         <div className="flex gap-2">
-          {COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setColor(c)}
-              className={`w-7 h-7 rounded-full transition-transform ${
-                color === c ? 'scale-125 ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : 'hover:scale-110'
-              }`}
-              style={{ backgroundColor: c }}
-            />
+          {COLORS.map(c => (
+            <button key={c} type="button" onClick={() => setColor(c)}
+              className="w-6 h-6 rounded-full transition-transform"
+              style={{ background: c, transform: color === c ? 'scale(1.3)' : 'scale(1)', boxShadow: color === c ? `0 0 8px ${c}` : 'none', outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: 2 }} />
           ))}
         </div>
       </div>
 
-      {/* Botões */}
+      {/* Buttons */}
       <div className="flex gap-2 pt-1">
-        <button
-          type="submit"
-          disabled={!name.trim() || !validTimes}
-          className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-lg transition-colors text-sm"
-        >
+        <button type="submit" disabled={!valid}
+          className="flex-1 py-2 rounded-xl font-semibold text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          style={{ background: valid ? `linear-gradient(135deg, ${color}, ${color}bb)` : 'rgba(255,255,255,0.1)' }}>
           {initial ? 'Salvar' : 'Adicionar'}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors text-sm"
-        >
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+          style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.08)' }}>
           Cancelar
         </button>
       </div>
