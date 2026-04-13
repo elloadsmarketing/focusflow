@@ -7,36 +7,52 @@ import TaskForm from './TaskForm'
 interface Props {
   onStart: (taskIds: string[]) => void
   sessionActive: boolean
+  currentIndex: number
+  completedIndexes: number[]
 }
 
-export default function TaskList({ onStart, sessionActive }: Props) {
-  const { tasks, addTask, updateTask, removeTask, reorderTasks } = useAppStore()
+function parseStartTime(hhmm: string): { h: number; m: number } {
+  const [h, m] = hhmm.split(':').map(Number)
+  return { h: h ?? 8, m: m ?? 0 }
+}
+
+function addMinutes(base: { h: number; m: number }, minutes: number): { h: number; m: number } {
+  const total = base.h * 60 + base.m + minutes
+  return { h: Math.floor(total / 60) % 24, m: total % 60 }
+}
+
+function fmt(t: { h: number; m: number }) {
+  return `${String(t.h).padStart(2, '0')}:${String(t.m).padStart(2, '0')}`
+}
+
+function fmtDuration(min: number) {
+  if (min < 60) return `${min}min`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
+export default function TaskList({ onStart, sessionActive, currentIndex, completedIndexes }: Props) {
+  const { tasks, dayStartTime, setDayStartTime, addTask, updateTask, removeTask, reorderTasks } = useAppStore()
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [selected, setSelected] = useState<string[]>([])
-
-  const toggleSelect = (id: string) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    )
-  }
-
-  const handleStartAll = () => {
-    const ids = tasks.map((t) => t.id)
-    if (ids.length > 0) onStart(ids)
-  }
-
-  const handleStartSelected = () => {
-    // Use selected in order they appear in tasks list
-    const ordered = tasks.filter((t) => selected.includes(t.id)).map((t) => t.id)
-    if (ordered.length > 0) onStart(ordered)
-  }
+  const [editingTime, setEditingTime] = useState(false)
+  const [tempTime, setTempTime] = useState(dayStartTime)
 
   const totalMinutes = tasks.reduce((sum, t) => sum + t.durationMinutes, 0)
+  const start = parseStartTime(dayStartTime)
+  const endTime = addMinutes(start, totalMinutes)
+
+  // Calcula horário de início de cada tarefa
+  const taskSlots = tasks.map((task, i) => {
+    const minutesBefore = tasks.slice(0, i).reduce((s, t) => s + t.durationMinutes, 0)
+    const slotStart = addMinutes(start, minutesBefore)
+    const slotEnd = addMinutes(start, minutesBefore + task.durationMinutes)
+    return { task, slotStart, slotEnd }
+  })
 
   const handleDragStart = (index: number) => setDragIndex(index)
-
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault()
     if (dragIndex === null || dragIndex === index) return
@@ -47,30 +63,72 @@ export default function TaskList({ onStart, sessionActive }: Props) {
     setDragIndex(index)
   }
 
+  const today = new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  })
+
   return (
     <div className="flex flex-col gap-4 h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-white">Sua Rotina</h2>
+
+      {/* Cabeçalho da agenda */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-zinc-500 capitalize">{today}</p>
+            <h2 className="text-lg font-bold text-white leading-tight">Agenda do Dia</h2>
+          </div>
+          <button
+            onClick={() => { setEditingTask(null); setShowForm(true) }}
+            disabled={sessionActive}
+            className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+          >
+            <span className="text-base leading-none">+</span> Tarefa
+          </button>
+        </div>
+
+        {/* Horário de início + resumo */}
+        <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-zinc-500 text-xs">Início:</span>
+            {editingTime ? (
+              <form
+                onSubmit={(e) => { e.preventDefault(); setDayStartTime(tempTime); setEditingTime(false) }}
+                className="flex items-center gap-1"
+              >
+                <input
+                  type="time"
+                  value={tempTime}
+                  onChange={(e) => setTempTime(e.target.value)}
+                  className="bg-zinc-800 border border-violet-600 rounded px-1.5 py-0.5 text-violet-400 text-xs font-mono focus:outline-none"
+                  autoFocus
+                />
+                <button type="submit" className="text-violet-400 text-xs hover:text-violet-300">✓</button>
+                <button type="button" onClick={() => setEditingTime(false)} className="text-zinc-500 text-xs hover:text-zinc-300">✕</button>
+              </form>
+            ) : (
+              <button
+                onClick={() => { setTempTime(dayStartTime); setEditingTime(true) }}
+                className="text-violet-400 text-xs font-mono font-bold hover:text-violet-300 transition-colors"
+                disabled={sessionActive}
+              >
+                {dayStartTime} ✏️
+              </button>
+            )}
+          </div>
           {tasks.length > 0 && (
-            <p className="text-xs text-zinc-500">
-              {tasks.length} tarefas · {totalMinutes >= 60
-                ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
-                : `${totalMinutes}m`} no total
-            </p>
+            <>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 text-xs">{tasks.length} tarefas</span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 text-xs">{fmtDuration(totalMinutes)}</span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 text-xs">até {fmt(endTime)}</span>
+            </>
           )}
         </div>
-        <button
-          onClick={() => { setEditingTask(null); setShowForm(true) }}
-          className="bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-          disabled={sessionActive}
-        >
-          <span className="text-base">+</span> Tarefa
-        </button>
       </div>
 
-      {/* Form */}
+      {/* Formulário */}
       {(showForm || editingTask) && (
         <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">
@@ -79,11 +137,8 @@ export default function TaskList({ onStart, sessionActive }: Props) {
           <TaskForm
             initial={editingTask ?? undefined}
             onSave={(data) => {
-              if (editingTask) {
-                updateTask(editingTask.id, data)
-              } else {
-                addTask(data)
-              }
+              if (editingTask) updateTask(editingTask.id, data)
+              else addTask(data)
               setShowForm(false)
               setEditingTask(null)
             }}
@@ -92,112 +147,105 @@ export default function TaskList({ onStart, sessionActive }: Props) {
         </div>
       )}
 
-      {/* Task list */}
-      <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1">
+      {/* Lista de tarefas como agenda */}
+      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto pr-1 gap-1">
         {tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 text-center py-12">
-            <span className="text-5xl mb-4">📋</span>
-            <p className="text-zinc-400 font-medium">Nenhuma tarefa ainda</p>
-            <p className="text-zinc-600 text-sm mt-1">Adicione suas tarefas para começar a rotina</p>
+            <span className="text-5xl mb-4">📅</span>
+            <p className="text-zinc-400 font-medium">Agenda vazia</p>
+            <p className="text-zinc-600 text-sm mt-1">Monte sua rotina diária clicando em "+ Tarefa"</p>
           </div>
         ) : (
-          tasks.map((task, index) => (
-            <div
-              key={task.id}
-              draggable={!sessionActive}
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={() => setDragIndex(null)}
-              className={`group flex items-center gap-3 p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
-                selected.includes(task.id)
-                  ? 'border-violet-500 bg-violet-950/40'
-                  : 'border-zinc-700/50 bg-zinc-800/60 hover:border-zinc-600'
-              } ${sessionActive ? 'opacity-60 cursor-default' : ''}`}
-            >
-              {/* Select checkbox */}
-              <button
-                onClick={() => !sessionActive && toggleSelect(task.id)}
-                className="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors"
-                style={{
-                  borderColor: selected.includes(task.id) ? task.color : '#52525b',
-                  backgroundColor: selected.includes(task.id) ? task.color : 'transparent',
-                }}
-                disabled={sessionActive}
+          taskSlots.map(({ task, slotStart, slotEnd }, index) => {
+            const isCompleted = completedIndexes.includes(index)
+            const isCurrent = sessionActive && index === currentIndex
+            const isFuture = sessionActive && index > currentIndex && !isCompleted
+
+            return (
+              <div
+                key={task.id}
+                draggable={!sessionActive}
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={() => setDragIndex(null)}
+                className={`group flex items-stretch gap-0 rounded-xl border overflow-hidden transition-all ${
+                  isCurrent
+                    ? 'border-violet-500 shadow-lg shadow-violet-900/30'
+                    : isCompleted
+                    ? 'border-zinc-800 opacity-50'
+                    : 'border-zinc-800 hover:border-zinc-700'
+                } ${sessionActive ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
               >
-                {selected.includes(task.id) && (
-                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
+                {/* Coluna de horário */}
+                <div
+                  className="flex flex-col items-center justify-center px-3 py-3 min-w-[64px] text-center"
+                  style={{ backgroundColor: `${task.color}18` }}
+                >
+                  <span className="text-xs font-bold" style={{ color: task.color }}>
+                    {fmt(slotStart)}
+                  </span>
+                  <div className="w-px flex-1 my-1" style={{ backgroundColor: `${task.color}40` }} />
+                  <span className="text-xs text-zinc-600">{fmt(slotEnd)}</span>
+                </div>
 
-              {/* Color bar */}
-              <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: task.color }} />
+                {/* Conteúdo da tarefa */}
+                <div className="flex items-center gap-3 flex-1 px-3 py-3 bg-zinc-900/60">
+                  <span className="text-xl">{task.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold text-sm truncate ${isCompleted ? 'line-through text-zinc-500' : 'text-white'}`}>
+                      {task.name}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{fmtDuration(task.durationMinutes)}</p>
+                  </div>
 
-              {/* Emoji + Name */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-xl">{task.emoji}</span>
-                <div className="min-w-0">
-                  <p className="font-medium text-white text-sm truncate">{task.name}</p>
-                  <p className="text-xs text-zinc-500">{task.durationMinutes} min</p>
+                  {/* Status / Ações */}
+                  {isCompleted && <span className="text-emerald-500 text-lg flex-shrink-0">✓</span>}
+                  {isCurrent && (
+                    <span className="flex items-center gap-1 text-xs text-violet-400 bg-violet-900/40 px-2 py-0.5 rounded-full flex-shrink-0">
+                      <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
+                      agora
+                    </span>
+                  )}
+                  {!sessionActive && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <button
+                        onClick={() => { setEditingTask(task); setShowForm(false) }}
+                        className="p-1.5 rounded-lg hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200 transition-colors text-sm"
+                      >✏️</button>
+                      <button
+                        onClick={() => removeTask(task.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-900/40 text-zinc-500 hover:text-red-400 transition-colors text-sm"
+                      >🗑️</button>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Actions */}
-              {!sessionActive && (
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => { setEditingTask(task); setShowForm(false) }}
-                    className="p-1.5 rounded-lg hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
-                    title="Editar"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => removeTask(task.id)}
-                    className="p-1.5 rounded-lg hover:bg-red-900/40 text-zinc-400 hover:text-red-400 transition-colors"
-                    title="Remover"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              )}
-
-              {/* Drag handle */}
-              {!sessionActive && (
-                <div className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">⠿</div>
-              )}
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
-      {/* Start buttons */}
+      {/* Botão Iniciar Dia */}
       {tasks.length > 0 && !sessionActive && (
-        <div className="flex gap-2 pt-2 border-t border-zinc-800">
-          {selected.length > 0 ? (
-            <>
-              <button
-                onClick={handleStartSelected}
-                className="flex-1 py-3 rounded-xl font-bold text-white text-sm transition-all bg-violet-600 hover:bg-violet-500 active:scale-95"
-              >
-                ▶ Iniciar {selected.length} selecionada{selected.length > 1 ? 's' : ''}
-              </button>
-              <button
-                onClick={() => setSelected([])}
-                className="px-4 py-3 rounded-xl font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors"
-              >
-                Limpar
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={handleStartAll}
-              className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all bg-violet-600 hover:bg-violet-500 active:scale-95"
-            >
-              ▶ Iniciar Rotina Completa
-            </button>
-          )}
+        <div className="pt-2 border-t border-zinc-800">
+          <button
+            onClick={() => onStart(tasks.map((t) => t.id))}
+            className="w-full py-3.5 rounded-xl font-black text-white text-base transition-all bg-violet-600 hover:bg-violet-500 active:scale-95 flex items-center justify-center gap-2"
+          >
+            🚀 Iniciar Dia
+          </button>
+          <p className="text-center text-xs text-zinc-600 mt-2">
+            {tasks.length} tarefas · {fmtDuration(totalMinutes)} · termina às {fmt(endTime)}
+          </p>
+        </div>
+      )}
+
+      {/* Sessão ativa — botão encerrar */}
+      {sessionActive && (
+        <div className="pt-2 border-t border-zinc-800">
+          <p className="text-center text-xs text-zinc-500">
+            Rotina em andamento · {completedIndexes.length}/{tasks.length} concluídas
+          </p>
         </div>
       )}
     </div>
