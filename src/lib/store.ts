@@ -184,6 +184,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: 'focusflow-storage',
+      skipHydration: true,
       partialize: (state) => ({ tasks: state.tasks, userName: state.userName }),
     }
   )
