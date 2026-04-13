@@ -12,36 +12,21 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  overflow: hidden;
+  height: 100%;
+  /* Sem overflow hidden — deixa o browser controlar */
 }
+
+/* Scrollbar discreta */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
 @keyframes pulse-slow {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
+  50% { opacity: 0.82; }
 }
-
-.animate-pulse-slow {
-  animation: pulse-slow 1s ease-in-out infinite;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
-}
+.animate-pulse-slow { animation: pulse-slow 1s ease-in-out infinite; }

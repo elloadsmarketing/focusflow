@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Task, useAppStore } from '@/lib/store'
+import { Task, useAppStore, getDurationMinutes, timeToMinutes } from '@/lib/store'
 import TaskForm from './TaskForm'
 
 interface Props {
@@ -11,46 +11,23 @@ interface Props {
   completedIndexes: number[]
 }
 
-function parseStartTime(hhmm: string): { h: number; m: number } {
-  const [h, m] = hhmm.split(':').map(Number)
-  return { h: h ?? 8, m: m ?? 0 }
-}
-
-function addMinutes(base: { h: number; m: number }, minutes: number): { h: number; m: number } {
-  const total = base.h * 60 + base.m + minutes
-  return { h: Math.floor(total / 60) % 24, m: total % 60 }
-}
-
-function fmt(t: { h: number; m: number }) {
-  return `${String(t.h).padStart(2, '0')}:${String(t.m).padStart(2, '0')}`
-}
-
 function fmtDuration(min: number) {
   if (min < 60) return `${min}min`
   const h = Math.floor(min / 60)
   const m = min % 60
-  return m > 0 ? `${h}h ${m}min` : `${h}h`
+  return m > 0 ? `${h}h${m}` : `${h}h`
 }
 
 export default function TaskList({ onStart, sessionActive, currentIndex, completedIndexes }: Props) {
-  const { tasks, dayStartTime, setDayStartTime, addTask, updateTask, removeTask, reorderTasks } = useAppStore()
+  const { tasks, addTask, updateTask, removeTask, reorderTasks } = useAppStore()
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [editingTime, setEditingTime] = useState(false)
-  const [tempTime, setTempTime] = useState(dayStartTime)
 
-  const totalMinutes = tasks.reduce((sum, t) => sum + t.durationMinutes, 0)
-  const start = parseStartTime(dayStartTime)
-  const endTime = addMinutes(start, totalMinutes)
+  const totalMinutes = tasks.reduce((sum, t) => sum + getDurationMinutes(t.startTime, t.endTime), 0)
 
-  // Calcula horário de início de cada tarefa
-  const taskSlots = tasks.map((task, i) => {
-    const minutesBefore = tasks.slice(0, i).reduce((s, t) => s + t.durationMinutes, 0)
-    const slotStart = addMinutes(start, minutesBefore)
-    const slotEnd = addMinutes(start, minutesBefore + task.durationMinutes)
-    return { task, slotStart, slotEnd }
-  })
+  // Horário sugerido para nova tarefa = fim da última tarefa
+  const suggestedStart = tasks.length > 0 ? tasks[tasks.length - 1].endTime : undefined
 
   const handleDragStart = (index: number) => setDragIndex(index)
   const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -68,74 +45,36 @@ export default function TaskList({ onStart, sessionActive, currentIndex, complet
   })
 
   return (
-    <div className="flex flex-col gap-4 h-full">
-
-      {/* Cabeçalho da agenda */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-zinc-500 capitalize">{today}</p>
-            <h2 className="text-lg font-bold text-white leading-tight">Agenda do Dia</h2>
-          </div>
-          <button
-            onClick={() => { setEditingTask(null); setShowForm(true) }}
-            disabled={sessionActive}
-            className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-          >
-            <span className="text-base leading-none">+</span> Tarefa
-          </button>
-        </div>
-
-        {/* Horário de início + resumo */}
-        <div className="flex items-center gap-3 mt-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-zinc-500 text-xs">Início:</span>
-            {editingTime ? (
-              <form
-                onSubmit={(e) => { e.preventDefault(); setDayStartTime(tempTime); setEditingTime(false) }}
-                className="flex items-center gap-1"
-              >
-                <input
-                  type="time"
-                  value={tempTime}
-                  onChange={(e) => setTempTime(e.target.value)}
-                  className="bg-zinc-800 border border-violet-600 rounded px-1.5 py-0.5 text-violet-400 text-xs font-mono focus:outline-none"
-                  autoFocus
-                />
-                <button type="submit" className="text-violet-400 text-xs hover:text-violet-300">✓</button>
-                <button type="button" onClick={() => setEditingTime(false)} className="text-zinc-500 text-xs hover:text-zinc-300">✕</button>
-              </form>
-            ) : (
-              <button
-                onClick={() => { setTempTime(dayStartTime); setEditingTime(true) }}
-                className="text-violet-400 text-xs font-mono font-bold hover:text-violet-300 transition-colors"
-                disabled={sessionActive}
-              >
-                {dayStartTime} ✏️
-              </button>
-            )}
-          </div>
+    <div className="flex flex-col gap-3 h-full">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs text-zinc-500 capitalize truncate">{today}</p>
+          <h2 className="text-base font-bold text-white leading-tight">Agenda do Dia</h2>
           {tasks.length > 0 && (
-            <>
-              <span className="text-zinc-700">·</span>
-              <span className="text-zinc-500 text-xs">{tasks.length} tarefas</span>
-              <span className="text-zinc-700">·</span>
-              <span className="text-zinc-500 text-xs">{fmtDuration(totalMinutes)}</span>
-              <span className="text-zinc-700">·</span>
-              <span className="text-zinc-500 text-xs">até {fmt(endTime)}</span>
-            </>
+            <p className="text-xs text-zinc-600 mt-0.5">
+              {tasks.length} {tasks.length === 1 ? 'tarefa' : 'tarefas'} · {fmtDuration(totalMinutes)} total
+            </p>
           )}
         </div>
+        <button
+          onClick={() => { setEditingTask(null); setShowForm(true) }}
+          disabled={sessionActive}
+          className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 flex-shrink-0"
+        >
+          + Tarefa
+        </button>
       </div>
 
       {/* Formulário */}
       {(showForm || editingTask) && (
-        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-3">
+        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-3">
+          <p className="text-xs font-semibold text-zinc-400 mb-3">
             {editingTask ? 'Editar tarefa' : 'Nova tarefa'}
-          </h3>
+          </p>
           <TaskForm
             initial={editingTask ?? undefined}
+            suggestedStart={suggestedStart}
             onSave={(data) => {
               if (editingTask) updateTask(editingTask.id, data)
               else addTask(data)
@@ -147,19 +86,19 @@ export default function TaskList({ onStart, sessionActive, currentIndex, complet
         </div>
       )}
 
-      {/* Lista de tarefas como agenda */}
-      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto pr-1 gap-1">
+      {/* Lista */}
+      <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0">
         {tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center flex-1 text-center py-12">
-            <span className="text-5xl mb-4">📅</span>
-            <p className="text-zinc-400 font-medium">Agenda vazia</p>
-            <p className="text-zinc-600 text-sm mt-1">Monte sua rotina diária clicando em "+ Tarefa"</p>
+          <div className="flex flex-col items-center justify-center flex-1 text-center py-10">
+            <span className="text-4xl mb-3">📅</span>
+            <p className="text-zinc-400 font-medium text-sm">Agenda vazia</p>
+            <p className="text-zinc-600 text-xs mt-1">Clique em "+ Tarefa" para montar sua rotina</p>
           </div>
         ) : (
-          taskSlots.map(({ task, slotStart, slotEnd }, index) => {
+          tasks.map((task, index) => {
             const isCompleted = completedIndexes.includes(index)
             const isCurrent = sessionActive && index === currentIndex
-            const isFuture = sessionActive && index > currentIndex && !isCompleted
+            const dur = getDurationMinutes(task.startTime, task.endTime)
 
             return (
               <div
@@ -168,53 +107,55 @@ export default function TaskList({ onStart, sessionActive, currentIndex, complet
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={() => setDragIndex(null)}
-                className={`group flex items-stretch gap-0 rounded-xl border overflow-hidden transition-all ${
+                className={`group flex items-stretch rounded-xl border overflow-hidden transition-all select-none ${
                   isCurrent
-                    ? 'border-violet-500 shadow-lg shadow-violet-900/30'
+                    ? 'border-violet-500 shadow-md shadow-violet-900/30'
                     : isCompleted
-                    ? 'border-zinc-800 opacity-50'
+                    ? 'border-zinc-800/50 opacity-50'
                     : 'border-zinc-800 hover:border-zinc-700'
-                } ${sessionActive ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
+                } ${!sessionActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
               >
                 {/* Coluna de horário */}
                 <div
-                  className="flex flex-col items-center justify-center px-3 py-3 min-w-[64px] text-center"
-                  style={{ backgroundColor: `${task.color}18` }}
+                  className="flex flex-col items-center justify-center px-2 py-2.5 w-14 flex-shrink-0 text-center gap-0.5"
+                  style={{ backgroundColor: `${task.color}20` }}
                 >
-                  <span className="text-xs font-bold" style={{ color: task.color }}>
-                    {fmt(slotStart)}
+                  <span className="text-xs font-bold leading-none" style={{ color: task.color }}>
+                    {task.startTime}
                   </span>
-                  <div className="w-px flex-1 my-1" style={{ backgroundColor: `${task.color}40` }} />
-                  <span className="text-xs text-zinc-600">{fmt(slotEnd)}</span>
+                  <div className="w-px h-3 my-0.5" style={{ backgroundColor: `${task.color}50` }} />
+                  <span className="text-xs text-zinc-500 leading-none">{task.endTime}</span>
                 </div>
 
-                {/* Conteúdo da tarefa */}
-                <div className="flex items-center gap-3 flex-1 px-3 py-3 bg-zinc-900/60">
-                  <span className="text-xl">{task.emoji}</span>
+                {/* Corpo */}
+                <div className="flex items-center gap-2 flex-1 px-2.5 py-2 bg-zinc-900/70 min-w-0">
+                  <span className="text-lg flex-shrink-0">{task.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm truncate ${isCompleted ? 'line-through text-zinc-500' : 'text-white'}`}>
+                    <p className={`font-semibold text-xs leading-tight truncate ${isCompleted ? 'line-through text-zinc-500' : 'text-white'}`}>
                       {task.name}
                     </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{fmtDuration(task.durationMinutes)}</p>
+                    <p className="text-xs text-zinc-600 mt-0.5">{fmtDuration(dur)}</p>
                   </div>
 
-                  {/* Status / Ações */}
-                  {isCompleted && <span className="text-emerald-500 text-lg flex-shrink-0">✓</span>}
+                  {/* Status */}
+                  {isCompleted && <span className="text-emerald-500 flex-shrink-0 text-sm">✓</span>}
                   {isCurrent && (
-                    <span className="flex items-center gap-1 text-xs text-violet-400 bg-violet-900/40 px-2 py-0.5 rounded-full flex-shrink-0">
+                    <span className="flex items-center gap-1 text-xs text-violet-400 bg-violet-900/40 px-1.5 py-0.5 rounded-full flex-shrink-0">
                       <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
                       agora
                     </span>
                   )}
+
+                  {/* Ações */}
                   {!sessionActive && (
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                       <button
                         onClick={() => { setEditingTask(task); setShowForm(false) }}
-                        className="p-1.5 rounded-lg hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200 transition-colors text-sm"
+                        className="p-1.5 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200 transition-colors text-xs"
                       >✏️</button>
                       <button
                         onClick={() => removeTask(task.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-900/40 text-zinc-500 hover:text-red-400 transition-colors text-sm"
+                        className="p-1.5 rounded hover:bg-red-900/40 text-zinc-500 hover:text-red-400 transition-colors text-xs"
                       >🗑️</button>
                     </div>
                   )}
@@ -225,26 +166,27 @@ export default function TaskList({ onStart, sessionActive, currentIndex, complet
         )}
       </div>
 
-      {/* Botão Iniciar Dia */}
+      {/* Rodapé */}
       {tasks.length > 0 && !sessionActive && (
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="pt-2 border-t border-zinc-800 flex-shrink-0">
           <button
             onClick={() => onStart(tasks.map((t) => t.id))}
-            className="w-full py-3.5 rounded-xl font-black text-white text-base transition-all bg-violet-600 hover:bg-violet-500 active:scale-95 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl font-black text-white text-sm transition-all bg-violet-600 hover:bg-violet-500 active:scale-95 flex items-center justify-center gap-2"
           >
             🚀 Iniciar Dia
           </button>
-          <p className="text-center text-xs text-zinc-600 mt-2">
-            {tasks.length} tarefas · {fmtDuration(totalMinutes)} · termina às {fmt(endTime)}
-          </p>
+          {tasks[0] && tasks[tasks.length - 1] && (
+            <p className="text-center text-xs text-zinc-600 mt-1.5">
+              {tasks[0].startTime} → {tasks[tasks.length - 1].endTime} · {fmtDuration(totalMinutes)}
+            </p>
+          )}
         </div>
       )}
 
-      {/* Sessão ativa — botão encerrar */}
       {sessionActive && (
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="pt-2 border-t border-zinc-800 flex-shrink-0">
           <p className="text-center text-xs text-zinc-500">
-            Rotina em andamento · {completedIndexes.length}/{tasks.length} concluídas
+            {completedIndexes.length}/{tasks.length} concluídas
           </p>
         </div>
       )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useAppStore } from '@/lib/store'
+import { useAppStore, getDurationMinutes } from '@/lib/store'
 import {
   startAlarm,
   stopAlarm,
@@ -74,7 +74,7 @@ export default function FocusTimer() {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
-  const totalSeconds = currentTask ? currentTask.durationMinutes * 60 : 1
+  const totalSeconds = currentTask ? getDurationMinutes(currentTask.startTime, currentTask.endTime) * 60 : 1
   const progress = Math.max(0, Math.min(1, 1 - timer.timeLeftSeconds / totalSeconds))
   const radius = 90
   const circumference = 2 * Math.PI * radius

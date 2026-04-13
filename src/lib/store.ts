@@ -4,7 +4,8 @@ import { persist } from 'zustand/middleware'
 export interface Task {
   id: string
   name: string
-  durationMinutes: number
+  startTime: string  // "HH:MM"
+  endTime: string    // "HH:MM"
   color: string
   emoji: string
 }
@@ -18,27 +19,42 @@ export interface TimerState {
   sessionStarted: boolean
   completedIndexes: number[]
   expired: boolean
-  dayStartedAt: string | null // ISO string do momento que o dia foi iniciado
+  dayStartedAt: string | null
 }
 
 interface AppStore {
   tasks: Task[]
   timer: TimerState
   userName: string
-  dayStartTime: string   // "HH:MM" — horário configurado para começar o dia
   setUserName: (name: string) => void
-  setDayStartTime: (time: string) => void
   addTask: (task: Omit<Task, 'id'>) => void
   updateTask: (id: string, task: Omit<Task, 'id'>) => void
   removeTask: (id: string) => void
   reorderTasks: (tasks: Task[]) => void
-  startSession: (taskIds: string[], startedAt?: string) => void
+  startSession: (taskIds: string[]) => void
   tickTimer: () => void
   pauseTimer: () => void
   resumeTimer: () => void
   nextTask: () => void
   stopSession: () => void
   acknowledgeExpiry: () => void
+}
+
+export function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
+}
+
+export function secondsUntilTime(hhmm: string): number {
+  const now = new Date()
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
+  const [h, m] = hhmm.split(':').map(Number)
+  const targetSec = (h ?? 0) * 3600 + (m ?? 0) * 60
+  return Math.max(0, targetSec - nowSec)
+}
+
+export function getDurationMinutes(startTime: string, endTime: string): number {
+  return Math.max(0, timeToMinutes(endTime) - timeToMinutes(startTime))
 }
 
 const defaultTimer: TimerState = {
@@ -59,10 +75,8 @@ export const useAppStore = create<AppStore>()(
       tasks: [],
       timer: defaultTimer,
       userName: '',
-      dayStartTime: '08:00',
 
       setUserName: (name) => set({ userName: name }),
-      setDayStartTime: (time) => set({ dayStartTime: time }),
 
       addTask: (taskData) => {
         const task: Task = { ...taskData, id: crypto.randomUUID() }
@@ -81,22 +95,38 @@ export const useAppStore = create<AppStore>()(
 
       reorderTasks: (tasks) => set({ tasks }),
 
-      startSession: (taskIds, startedAt) => {
+      startSession: (taskIds) => {
         if (taskIds.length === 0) return
-        const state = get()
-        const firstTask = state.tasks.find((t) => t.id === taskIds[0])
-        if (!firstTask) return
+        const { tasks } = get()
+
+        // Encontra a tarefa atual com base no horário real
+        const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes()
+        let startIndex = 0
+        for (let i = 0; i < taskIds.length; i++) {
+          const t = tasks.find((t) => t.id === taskIds[i])
+          if (!t) continue
+          if (timeToMinutes(t.endTime) > nowMinutes) {
+            startIndex = i
+            break
+          }
+          // Se todas acabaram, começa na última
+          startIndex = i
+        }
+
+        const activeTask = tasks.find((t) => t.id === taskIds[startIndex])
+        if (!activeTask) return
+
         set({
           timer: {
             isRunning: true,
             isPaused: false,
-            currentIndex: 0,
-            timeLeftSeconds: firstTask.durationMinutes * 60,
+            currentIndex: startIndex,
+            timeLeftSeconds: secondsUntilTime(activeTask.endTime),
             routineTaskIds: taskIds,
             sessionStarted: true,
-            completedIndexes: [],
+            completedIndexes: Array.from({ length: startIndex }, (_, i) => i),
             expired: false,
-            dayStartedAt: startedAt ?? new Date().toISOString(),
+            dayStartedAt: new Date().toISOString(),
           },
         })
       },
@@ -104,19 +134,13 @@ export const useAppStore = create<AppStore>()(
       tickTimer: () => {
         const { timer } = get()
         if (!timer.isRunning || timer.isPaused || timer.expired) return
-
         if (timer.timeLeftSeconds > 1) {
           set((s) => ({
             timer: { ...s.timer, timeLeftSeconds: s.timer.timeLeftSeconds - 1 },
           }))
         } else if (timer.timeLeftSeconds === 1) {
           set((s) => ({
-            timer: {
-              ...s.timer,
-              timeLeftSeconds: 0,
-              isRunning: false,
-              expired: true,
-            },
+            timer: { ...s.timer, timeLeftSeconds: 0, isRunning: false, expired: true },
           }))
         }
       },
@@ -143,7 +167,7 @@ export const useAppStore = create<AppStore>()(
           timer: {
             ...s.timer,
             currentIndex: nextIndex,
-            timeLeftSeconds: nextTask.durationMinutes * 60,
+            timeLeftSeconds: secondsUntilTime(nextTask.endTime),
             isRunning: true,
             isPaused: false,
             expired: false,
@@ -152,9 +176,7 @@ export const useAppStore = create<AppStore>()(
         }))
       },
 
-      stopSession: () => {
-        set({ timer: defaultTimer })
-      },
+      stopSession: () => set({ timer: defaultTimer }),
 
       acknowledgeExpiry: () => {
         set((s) => ({ timer: { ...s.timer, expired: false } }))
@@ -162,11 +184,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: 'focusflow-storage',
-      partialize: (state) => ({
-        tasks: state.tasks,
-        userName: state.userName,
-        dayStartTime: state.dayStartTime,
-      }),
+      partialize: (state) => ({ tasks: state.tasks, userName: state.userName }),
     }
   )
 )
